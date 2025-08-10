@@ -7,7 +7,6 @@ const token = ref('')
 const emailSignup = ref('')
 const pwdSignup = ref('')
 const nickname = ref('')
-const signupRes = ref('')
 const signup = async () => {
   try {
     const res = await axios.post(`${api}/users/sign_up`, {
@@ -15,13 +14,49 @@ const signup = async () => {
       password: pwdSignup.value,
       nickname: nickname.value,
     })
-    signupRes.value = `註冊成功：${res.data.uid}`
-    alert(`${emailSignup.value} 註冊成功`)
+    alert(`${res.data.nickname} 註冊成功`)
     emailSignup.value = ''
     pwdSignup.value = ''
     nickname.value = ''
   } catch (error) {
     alert(`${error.response.data.message}`)
+  }
+}
+//取得使用者資料
+const fetchUserData = async () => {
+  if (!token.value) {
+    user.value = []
+    return
+  }
+  try {
+    const res = await axios.get(`${api}/users/checkout`, {
+      headers: {
+        Authorization: token.value,
+      },
+    })
+    user.value = res.data
+  } catch (error) {
+    console.log(error.response.data.message)
+  }
+}
+//取得使用者todos資料
+const getTodos = async () => {
+  try {
+    const res = await axios.get(`${api}/todos/`, {
+      headers: {
+        Authorization: token.value,
+      },
+    })
+    const newList = res.data.data.map((item) => {
+      return {
+        ...item,
+        isEditing: false,
+        tempContent: item.content,
+      }
+    })
+    todos.value = newList
+  } catch (error) {
+    console.log(error.response.data.message)
   }
 }
 //登入
@@ -35,8 +70,11 @@ const signin = async () => {
     })
     token.value = res.data.token
     document.cookie = `customTodoToken=${res.data.token};path=;` //放於cookie
+    emailSignin.value = ''
+    pwdSignin.value = ''
     alert(`登入成功`)
-    window.location.reload() //重載頁面
+    await fetchUserData()
+    await getTodos()
   } catch (error) {
     alert(`${error.response.data.message}`)
   }
@@ -46,40 +84,16 @@ const user = ref({
   nickname: '',
   uid: '',
 })
-const editTodos = ref([])
 // 載入頁面到onMounted階段會檢查是否登入狀態
 onMounted(async () => {
-  //onMounted中使用async
   try {
     token.value = document.cookie.replace(/(?:^|.*;\s*)customTodoToken\s*=\s*([^;]*).*$/i, '$1') //從cookie取出token
     if (token.value) {
-      const getUser = await axios.get(`${api}/users/checkout`, {
-        headers: {
-          Authorization: token.value,
-        },
-      })
-      user.value = getUser.data //使用者uid nickname
-      //取得使用者的todolist
-      const getTodos = await axios.get(`${api}/todos/`, {
-        headers: {
-          Authorization: token.value,
-        },
-      })
-      todos.value = getTodos.data.data
-      //製造todolist的編輯狀態 初始值為false
-      if (todos.value.length !== 0) {
-        const todosStatus = todos.value.map((item) => {
-          return {
-            id: item.id,
-            tempContent: item.content,
-            isEditing: false,
-          }
-        })
-        editTodos.value = todosStatus
-      }
+      await fetchUserData() //驗證
+      await getTodos() //取得todos
     }
   } catch (error) {
-    console.log(`${error.response.data.message}`)
+    console.log(error.response.data.message)
   }
 })
 //登出
@@ -94,9 +108,10 @@ const signout = async () => {
         },
       },
     )
-    document.cookie = `customTodoToken=${token.value}; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;` //清除cookie
+    document.cookie = `customTodoToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=;` //清除cookie
+    token.value = null
     alert(`${res.data.message}`)
-    window.location.reload()
+    await fetchUserData()
   } catch (error) {
     alert(`${error.response.data.message}`)
   }
@@ -118,8 +133,9 @@ const addTodo = async () => {
         },
       },
     )
+    todo.value = ''
     alert(`新增成功：${res.data.newTodo.content}`)
-    window.location.reload()
+    await getTodos()
   } catch (error) {
     alert(`${error.response.data.message[0]}`)
   }
@@ -127,8 +143,7 @@ const addTodo = async () => {
 //編輯待辦
 const editTodo = async (id) => {
   const index = todos.value.findIndex((item) => item.id === id)
-  editTodos.value[index].isEditing = true //可編輯狀態
-  editTodos.value[index].tempContent = todos.value[index].content //將原始資料內容存入暫時內容
+  todos.value[index].isEditing = true //可編輯狀態
 }
 //儲存編輯待辦
 const saveEdit = async (id, tempContent) => {
@@ -145,20 +160,19 @@ const saveEdit = async (id, tempContent) => {
       },
     )
     const index = todos.value.findIndex((item) => item.id === id)
-    editTodos.value[index].isEditing = false //不可編輯狀態
+    todos.value[index].isEditing = false //不可編輯狀態
     alert(`${res.data.message}`)
-    window.location.reload()
+    await getTodos()
   } catch (error) {
     alert(`${error.response.data.message[0]}`)
   }
 }
 //取消編輯
 const cancelEdit = async (id) => {
-  const index = editTodos.value.findIndex((item) => item.id === id)
-  editTodos.value[index].isEditing = false //不可編輯狀態
+  const index = todos.value.findIndex((item) => item.id === id)
+  todos.value[index].isEditing = false
 }
 //刪除待辦
-const delTodoRes = ref('')
 const delTodo = async (id) => {
   try {
     const res = await axios.delete(`${api}/todos/${id}`, {
@@ -166,8 +180,8 @@ const delTodo = async (id) => {
         Authorization: token.value,
       },
     })
-    delTodoRes.value = res.data.message
-    window.location.reload()
+    alert(`${res.data.message}`)
+    await getTodos()
   } catch (error) {
     alert(`${error.response.data.message[0]}`)
   }
@@ -185,7 +199,7 @@ const editStatus = async (id) => {
       },
     )
     alert(`${res.data.message}`)
-    window.location.reload()
+    await getTodos()
   } catch (error) {
     alert(`${error.response.data.message[0]}`)
   }
@@ -282,7 +296,7 @@ const editStatus = async (id) => {
           <button type="button" @click="addTodo" class="btn btn-dark mb-3">新增</button>
         </div>
         <!-- 清單列表 -->
-        <ul v-for="(item, index) in todos" :key="item.id" class="list-group">
+        <ul v-for="item in todos" :key="item.id" class="list-group">
           <li class="list-group-item">
             <div class="d-flex flex-row align-items-center justify-content-between">
               <!-- 待辦狀態勾選 -->
@@ -304,27 +318,23 @@ const editStatus = async (id) => {
                 />
               </div>
               <!-- 編輯待辦內容 -->
-              <template v-if="editTodos[index].isEditing">
+              <template v-if="item.isEditing">
                 <div>
                   <input
                     type="text"
-                    v-model.trim="editTodos[index].tempContent"
+                    v-model.trim="item.tempContent"
                     class="form-control w-auto mx-auto"
                   />
                 </div>
                 <div>
                   <button
                     type="button"
-                    @click="saveEdit(editTodos[index].id, editTodos[index].tempContent)"
+                    @click="saveEdit(item.id, item.tempContent)"
                     class="btn btn-success me-2"
                   >
                     儲存
                   </button>
-                  <button
-                    type="button"
-                    @click="cancelEdit(editTodos[index].id)"
-                    class="btn btn-outline-dark"
-                  >
+                  <button type="button" @click="cancelEdit(item.id)" class="btn btn-outline-dark">
                     取消
                   </button>
                 </div>
