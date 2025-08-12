@@ -8,11 +8,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp dist/index.html dist/404.html",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
-    "deploy": "npm run build && gh-pages -d dist -v .*/**/*"
+    "deploy": "gh-pages -d dist -v .*/**/*"
   },
   "dependencies": {
     "axios": "^1.11.0",

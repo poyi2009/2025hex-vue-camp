@@ -165,11 +165,14 @@ const saveEdit = async (id, tempContent) => {
     await getTodos()
   } catch (error) {
     alert(`${error.response.data.message[0]}`)
+    const index = todos.value.findIndex((item) => item.id === id)
+    todos.value[index].tempContent = todos.value[index].content
   }
 }
 //取消編輯
 const cancelEdit = async (id) => {
   const index = todos.value.findIndex((item) => item.id === id)
+  todos.value[index].tempContent = todos.value[index].content
   todos.value[index].isEditing = false
 }
 //刪除待辦
